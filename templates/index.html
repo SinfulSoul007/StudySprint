@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}Home - StudySprint{% endblock %}
+
+{% block content %}
+<div class="text-center mb-12">
+    <h1 class="text-5xl font-bold text-gray-900 mb-4">StudySprint</h1>
+    <p class="text-xl text-gray-600 mb-8">Bite-sized coding challenges in focused 25-minute sprints</p>
+    
+    {% if not session.get('user_id') %}
+        <div class="space-x-4">
+            <a href="/register" class="bg-blue-600 text-white px-8 py-3 rounded-lg text-lg hover:bg-blue-700">Get Started</a>
+            <a href="/login" class="border border-blue-600 text-blue-600 px-8 py-3 rounded-lg text-lg hover:bg-blue-50">Login</a>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Features -->
+<div class="grid md:grid-cols-3 gap-8 mb-16">
+    <div class="text-center">
+        <div class="bg-blue-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+            <span class="text-2xl">⏱️</span>
+        </div>
+        <h3 class="text-xl font-semibold mb-2">25-Minute Sprints</h3>
+        <p class="text-gray-600">Focus on one problem at a time with built-in time limits</p>
+    </div>
+    
+    <div class="text-center">
+        <div class="bg-green-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+            <span class="text-2xl">🧠</span>
+        </div>
+        <h3 class="text-xl font-semibold mb-2">Algorithm Practice</h3>
+        <p class="text-gray-600">Curated problems covering data structures and algorithms</p>
+    </div>
+    
+    <div class="text-center">
+        <div class="bg-purple-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+            <span class="text-2xl">📊</span>
+        </div>
+        <h3 class="text-xl font-semibold mb-2">Track Progress</h3>
+        <p class="text-gray-600">Monitor your streaks and identify areas for improvement</p>
+    </div>
+</div>
+
+<!-- Recent Problems -->
+{% if problems %}
+<div class="bg-white rounded-lg shadow-lg p-8">
+    <h2 class="text-2xl font-bold mb-6">Featured Problems</h2>
+    
+    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {% for problem in problems %}
+            <div class="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow">
+                <div class="flex justify-between items-start mb-3">
+                    <h3 class="font-semibold text-lg">{{ problem.title }}</h3>
+                    <span class="px-2 py-1 text-xs rounded 
+                        {% if problem.difficulty == 'Easy' %}bg-green-100 text-green-800
+                        {% elif problem.difficulty == 'Medium' %}bg-yellow-100 text-yellow-800
+                        {% else %}bg-red-100 text-red-800{% endif %}">
+                        {{ problem.difficulty }}
+                    </span>
+                </div>
+                
+                <p class="text-gray-600 text-sm mb-4">{{ problem.prompt_md[:100] }}...</p>
+                
+                {% if problem.tags %}
+                    <div class="mb-4">
+                        {% for tag in problem.get_tags_list()[:3] %}
+                            <span class="inline-block bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded mr-1">
+                                {{ tag }}
+                            </span>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+                
+                {% if session.get('user_id') %}
+                    <a href="/sprint/{{ problem.id }}" 
+                       class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm inline-block">
+                        Start Sprint ⏱️
+                    </a>
+                {% else %}
+                    <a href="/login" 
+                       class="bg-gray-300 text-gray-700 px-4 py-2 rounded text-sm inline-block">
+                        Login to Start
+                    </a>
+                {% endif %}
+            </div>
+        {% endfor %}
+    </div>
+    
+    <div class="text-center mt-8">
+        <a href="/problems" class="text-blue-600 hover:text-blue-800 font-medium">
+            View All Problems →
+        </a>
+    </div>
+</div>
+{% endif %}
+
+<!-- Call to Action -->
+{% if not session.get('user_id') %}
+<div class="bg-blue-600 rounded-lg p-8 text-white text-center mt-12">
+    <h2 class="text-2xl font-bold mb-4">Ready to Level Up Your Coding?</h2>
+    <p class="text-blue-100 mb-6">Join StudySprint and start solving problems in focused, timed sessions</p>
+    <a href="/register" class="bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold hover:bg-blue-50">
+        Sign Up Free
+    </a>
+</div>
+{% endif %}
+{% endblock %} 

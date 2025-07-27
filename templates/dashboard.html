@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - StudySprint{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <h1 class="text-3xl font-bold text-gray-900">Welcome back, {{ user.username }}! 👋</h1>
+    <p class="text-gray-600 mt-2">Track your coding progress and streaks</p>
+</div>
+
+<!-- Stats Overview -->
+<div class="grid md:grid-cols-4 gap-6 mb-8">
+    <div class="bg-white rounded-lg shadow-lg p-6">
+        <div class="flex items-center">
+            <div class="p-3 rounded-full bg-blue-100 text-blue-600">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </div>
+            <div class="ml-4">
+                <h2 class="text-2xl font-bold text-gray-900">{{ passed_submissions }}</h2>
+                <p class="text-gray-600">Problems Solved</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-lg p-6">
+        <div class="flex items-center">
+            <div class="p-3 rounded-full bg-green-100 text-green-600">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                </svg>
+            </div>
+            <div class="ml-4">
+                <h2 class="text-2xl font-bold text-gray-900">{{ user.streak_count }}</h2>
+                <p class="text-gray-600">Current Streak</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-lg p-6">
+        <div class="flex items-center">
+            <div class="p-3 rounded-full bg-purple-100 text-purple-600">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                </svg>
+            </div>
+            <div class="ml-4">
+                <h2 class="text-2xl font-bold text-gray-900">{{ total_submissions }}</h2>
+                <p class="text-gray-600">Total Attempts</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-lg p-6">
+        <div class="flex items-center">
+            <div class="p-3 rounded-full bg-yellow-100 text-yellow-600">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </div>
+            <div class="ml-4">
+                <h2 class="text-2xl font-bold text-gray-900">
+                    {% if total_submissions > 0 %}
+                        {{ "%.1f"|format((passed_submissions / total_submissions * 100)) }}%
+                    {% else %}
+                        0%
+                    {% endif %}
+                </h2>
+                <p class="text-gray-600">Success Rate</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="grid lg:grid-cols-2 gap-8">
+    <!-- Recent Activity -->
+    <div class="bg-white rounded-lg shadow-lg p-6">
+        <h2 class="text-xl font-bold mb-4">Recent Submissions</h2>
+        
+        {% if recent_submissions %}
+            <div class="space-y-3">
+                {% for submission in recent_submissions %}
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div class="flex items-center space-x-3">
+                            <div class="flex-shrink-0">
+                                {% if submission.passed %}
+                                    <span class="text-green-600 text-lg">✅</span>
+                                {% else %}
+                                    <span class="text-red-600 text-lg">❌</span>
+                                {% endif %}
+                            </div>
+                            <div>
+                                <h3 class="font-semibold">{{ submission.problem.title }}</h3>
+                                <p class="text-sm text-gray-600">
+                                    {{ submission.submitted_at.strftime('%b %d, %Y at %I:%M %p') }}
+                                </p>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <span class="px-2 py-1 text-xs rounded 
+                                {% if submission.problem.difficulty == 'Easy' %}bg-green-100 text-green-800
+                                {% elif submission.problem.difficulty == 'Medium' %}bg-yellow-100 text-yellow-800
+                                {% else %}bg-red-100 text-red-800{% endif %}">
+                                {{ submission.problem.difficulty }}
+                            </span>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="text-center py-8">
+                <p class="text-gray-500">No submissions yet!</p>
+                <a href="/problems" class="text-blue-600 hover:text-blue-800 font-medium">
+                    Start your first sprint →
+                </a>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Difficulty Breakdown -->
+    <div class="bg-white rounded-lg shadow-lg p-6">
+        <h2 class="text-xl font-bold mb-4">Problems Solved by Difficulty</h2>
+        
+        {% if difficulty_stats %}
+            <div class="space-y-4">
+                {% for difficulty, count in difficulty_stats %}
+                    <div class="flex items-center justify-between">
+                        <span class="font-medium">{{ difficulty }}</span>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-32 bg-gray-200 rounded-full h-2">
+                                <div class="h-2 rounded-full 
+                                    {% if difficulty == 'Easy' %}bg-green-500
+                                    {% elif difficulty == 'Medium' %}bg-yellow-500
+                                    {% else %}bg-red-500{% endif %}" 
+                                    style="width: {{ (count / passed_submissions * 100) if passed_submissions > 0 else 0 }}%"></div>
+                            </div>
+                            <span class="font-bold text-lg">{{ count }}</span>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="text-center py-8">
+                <p class="text-gray-500">Solve problems to see your progress!</p>
+                <a href="/problems" class="text-blue-600 hover:text-blue-800 font-medium">
+                    Browse problems →
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="mt-8 bg-blue-600 rounded-lg p-6 text-white">
+    <div class="flex flex-col md:flex-row items-center justify-between">
+        <div>
+            <h2 class="text-2xl font-bold mb-2">Ready for your next sprint?</h2>
+            <p class="text-blue-100">Keep your streak alive and tackle new challenges!</p>
+        </div>
+        <div class="mt-4 md:mt-0 space-x-4">
+            <a href="/problems" class="bg-white text-blue-600 px-6 py-3 rounded-lg font-semibold hover:bg-blue-50">
+                Browse Problems
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %} 

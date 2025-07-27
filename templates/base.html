@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StudySprint - {% block title %}Bite-sized Coding Challenges{% endblock %}</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Monaco Editor -->
+    <script src="https://unpkg.com/monaco-editor@0.44.0/min/vs/loader.js"></script>
+    
+    {% block head %}{% endblock %}
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-lg">
+        <div class="container mx-auto px-4">
+            <div class="flex justify-between items-center py-4">
+                <div class="flex items-center space-x-4">
+                    <a href="/" class="text-2xl font-bold text-blue-600">StudySprint</a>
+                    <span class="text-gray-500">⏱️ LeetCode meets Pomodoro</span>
+                </div>
+                
+                <div class="flex items-center space-x-4">
+                    {% if session.get('user_id') %}
+                        <a href="/problems" class="text-gray-700 hover:text-blue-600">Problems</a>
+                        <a href="/leaderboard" class="text-gray-700 hover:text-blue-600">🏆 Leaderboard</a>
+                        <a href="/dashboard" class="text-gray-700 hover:text-blue-600">Dashboard</a>
+                        <span class="text-gray-600">Hello, {{ session.get('username') }}!</span>
+                        <a href="/logout" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">Logout</a>
+                    {% else %}
+                        <a href="/problems" class="text-gray-700 hover:text-blue-600">Problems</a>
+                        <a href="/leaderboard" class="text-gray-700 hover:text-blue-600">🏆 Leaderboard</a>
+                        <a href="/login" class="text-gray-700 hover:text-blue-600">Login</a>
+                        <a href="/register" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Sign Up</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            <div class="container mx-auto px-4 mt-4">
+                {% for message in messages %}
+                    <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-8">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-800 text-white mt-16">
+        <div class="container mx-auto px-4 py-8">
+            <div class="text-center">
+                <p>&copy; 2024 StudySprint. Built with Flask & ❤️</p>
+                <p class="text-gray-400 text-sm mt-2">Practice coding in focused 25-minute sprints</p>
+            </div>
+        </div>
+    </footer>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html> 

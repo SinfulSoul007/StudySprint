@@ -1,0 +1,306 @@
+{% extends "base.html" %}
+
+{% block title %}Sprint: {{ problem.title }} - StudySprint{% endblock %}
+
+{% block head %}
+<style>
+    #editor {
+        height: 400px;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.5rem;
+    }
+    .timer-circle {
+        stroke-dasharray: 283;
+        stroke-dashoffset: 283;
+        transition: stroke-dashoffset 1s linear;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="grid lg:grid-cols-2 gap-8">
+    <!-- Left Side: Problem & Timer -->
+    <div class="space-y-6">
+        <!-- Timer -->
+        <div class="bg-white rounded-lg shadow-lg p-6 text-center">
+            <h2 class="text-xl font-bold mb-4">Sprint Timer</h2>
+            
+            <div class="relative mx-auto w-32 h-32 mb-4">
+                <svg class="transform -rotate-90 w-32 h-32">
+                    <circle cx="64" cy="64" r="45" stroke="#e5e7eb" stroke-width="8" fill="transparent"></circle>
+                    <circle id="timer-progress" cx="64" cy="64" r="45" stroke="#3b82f6" stroke-width="8" 
+                            fill="transparent" class="timer-circle"></circle>
+                </svg>
+                <div class="absolute inset-0 flex items-center justify-center">
+                    <div class="text-center">
+                        <div id="timer-display" class="text-2xl font-bold text-gray-800">25:00</div>
+                        <div class="text-xs text-gray-500">minutes</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="space-x-4">
+                <button id="start-timer" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700">
+                    Start Sprint
+                </button>
+                <button id="pause-timer" class="bg-yellow-600 text-white px-6 py-2 rounded-lg hover:bg-yellow-700" disabled>
+                    Pause
+                </button>
+                <button id="reset-timer" class="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700">
+                    Reset
+                </button>
+            </div>
+        </div>
+
+        <!-- Problem Description -->
+        <div class="bg-white rounded-lg shadow-lg p-6">
+            <div class="flex justify-between items-start mb-4">
+                <h1 class="text-2xl font-bold">{{ problem.title }}</h1>
+                <span class="px-3 py-1 text-sm rounded 
+                    {% if problem.difficulty == 'Easy' %}bg-green-100 text-green-800
+                    {% elif problem.difficulty == 'Medium' %}bg-yellow-100 text-yellow-800
+                    {% else %}bg-red-100 text-red-800{% endif %}">
+                    {{ problem.difficulty }}
+                </span>
+            </div>
+
+            <div class="prose prose-sm max-w-none mb-4">
+                {{ problem.prompt_md | safe }}
+            </div>
+
+            {% if problem.tags %}
+                <div class="mb-4">
+                    <strong>Tags:</strong>
+                    {% for tag in problem.get_tags_list() %}
+                        <span class="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded mr-1">
+                            {{ tag }}
+                        </span>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Right Side: Code Editor & Submission -->
+    <div class="space-y-6">
+        <!-- Code Editor -->
+        <div class="bg-white rounded-lg shadow-lg p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold">Code Editor</h2>
+                <div class="space-x-2">
+                    <button id="run-code" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                        Run Tests
+                    </button>
+                </div>
+            </div>
+            
+            <div id="editor"></div>
+        </div>
+
+        <!-- Test Results -->
+        <div id="results-panel" class="bg-white rounded-lg shadow-lg p-6 hidden">
+            <h3 class="text-lg font-semibold mb-4">Test Results</h3>
+            <div id="test-results"></div>
+        </div>
+
+        <!-- Hints/Tips -->
+        <div class="bg-blue-50 rounded-lg p-4 border border-blue-200">
+            <h3 class="font-semibold text-blue-800 mb-2">💡 Tips</h3>
+            <ul class="text-sm text-blue-700 space-y-1">
+                <li>• Write a function called <code class="bg-blue-100 px-1 rounded">solution(input)</code></li>
+                <li>• Return your answer, don't print it</li>
+                <li>• Test with the provided examples first</li>
+                <li>• Focus on correctness first, then optimize</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/timer.js"></script>
+<script src="/static/js/editor.js"></script>
+<script>
+    // Initialize the page
+    let editor;
+    let timer = null;
+    let timeLeft = 25 * 60; // 25 minutes in seconds
+    let isRunning = false;
+    let sprintStartTime = Date.now(); // Track when user started working on problem
+    
+    // Initialize Monaco Editor
+    require.config({ paths: { 'vs': 'https://unpkg.com/monaco-editor@0.44.0/min/vs' }});
+    require(['vs/editor/editor.main'], function() {
+        editor = monaco.editor.create(document.getElementById('editor'), {
+            value: {{ problem.starter_code | tojson | safe }},
+            language: 'python',
+            theme: 'vs-dark',
+            automaticLayout: true,
+            fontSize: 14,
+            minimap: { enabled: false },
+            wordWrap: 'on'
+        });
+    });
+
+    // Timer functionality
+    const timerDisplay = document.getElementById('timer-display');
+    const timerProgress = document.getElementById('timer-progress');
+    const startBtn = document.getElementById('start-timer');
+    const pauseBtn = document.getElementById('pause-timer');
+    const resetBtn = document.getElementById('reset-timer');
+
+    function updateTimerDisplay() {
+        const minutes = Math.floor(timeLeft / 60);
+        const seconds = timeLeft % 60;
+        timerDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        
+        // Update progress circle
+        const totalTime = 25 * 60;
+        const progress = (totalTime - timeLeft) / totalTime;
+        const offset = 283 - (progress * 283);
+        timerProgress.style.strokeDashoffset = offset;
+    }
+
+    function startTimer() {
+        if (!isRunning) {
+            isRunning = true;
+            startBtn.disabled = true;
+            pauseBtn.disabled = false;
+            
+            timer = setInterval(() => {
+                timeLeft--;
+                updateTimerDisplay();
+                
+                if (timeLeft <= 0) {
+                    clearInterval(timer);
+                    isRunning = false;
+                    startBtn.disabled = false;
+                    pauseBtn.disabled = true;
+                    alert('Time\'s up! Great job on your sprint! 🎉');
+                }
+            }, 1000);
+        }
+    }
+
+    function pauseTimer() {
+        if (isRunning) {
+            clearInterval(timer);
+            isRunning = false;
+            startBtn.disabled = false;
+            pauseBtn.disabled = true;
+        }
+    }
+
+    function resetTimer() {
+        clearInterval(timer);
+        isRunning = false;
+        timeLeft = 25 * 60;
+        updateTimerDisplay();
+        startBtn.disabled = false;
+        pauseBtn.disabled = true;
+    }
+
+    // Event listeners
+    startBtn.addEventListener('click', startTimer);
+    pauseBtn.addEventListener('click', pauseTimer);
+    resetBtn.addEventListener('click', resetTimer);
+
+    // Run code functionality
+    document.getElementById('run-code').addEventListener('click', async function() {
+        if (!editor) {
+            alert('Editor not loaded yet. Please wait a moment and try again.');
+            return;
+        }
+
+        const code = editor.getValue();
+        const button = this;
+        
+        // Calculate solve time (from when sprint started to now)
+        const solveTimeSeconds = Math.floor((Date.now() - sprintStartTime) / 1000);
+        
+        // Show loading state
+        button.textContent = 'Running...';
+        button.disabled = true;
+
+        try {
+            const response = await fetch(`/submit/{{ problem.id }}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ 
+                    code: code,
+                    solve_time: solveTimeSeconds
+                })
+            });
+
+            const result = await response.json();
+            
+            // Show results
+            displayResults(result);
+            
+        } catch (error) {
+            console.error('Error:', error);
+            alert('An error occurred while running your code.');
+        } finally {
+            // Reset button
+            button.textContent = 'Run Tests';
+            button.disabled = false;
+        }
+    });
+
+    function displayResults(result) {
+        const resultsPanel = document.getElementById('results-panel');
+        const testResults = document.getElementById('test-results');
+        
+        resultsPanel.classList.remove('hidden');
+        
+        let html = '';
+        
+        if (result.passed) {
+            html += `<div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <strong>✅ All tests passed! Great job!</strong>
+                        <div class="text-sm">Tests: ${result.tests_passed}/${result.total_tests}</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="font-bold text-lg">+${result.points_earned} points!</div>
+                        <div class="text-sm">Solve time: ${result.solve_time}</div>
+                    </div>
+                </div>
+            </div>`;
+        } else {
+            html += `<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+                ❌ Some tests failed. (${result.tests_passed}/${result.total_tests} passed)
+                <div class="text-sm mt-1">Time: ${result.solve_time}</div>
+            </div>`;
+        }
+        
+        // Show individual test results
+        if (result.results) {
+            html += '<div class="space-y-2">';
+            result.results.forEach((test, index) => {
+                const bgColor = test.passed ? 'bg-green-50' : 'bg-red-50';
+                const textColor = test.passed ? 'text-green-800' : 'text-red-800';
+                const icon = test.passed ? '✅' : '❌';
+                
+                html += `<div class="${bgColor} ${textColor} p-3 rounded border">
+                    <strong>${icon} Test ${test.test_number}</strong><br>
+                    <small>Input: ${JSON.stringify(test.input)}<br>
+                    Expected: ${JSON.stringify(test.expected)}</small>
+                </div>`;
+            });
+            html += '</div>';
+        }
+        
+        testResults.innerHTML = html;
+        
+        // Scroll to results
+        resultsPanel.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // Initialize timer display
+    updateTimerDisplay();
+</script>
+{% endblock %} 

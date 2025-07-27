@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block title %}Problems - StudySprint{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <h1 class="text-3xl font-bold text-gray-900 mb-4">Coding Challenges</h1>
+    <p class="text-gray-600">Choose a problem and start your 25-minute focused coding sprint</p>
+</div>
+
+<!-- Filters -->
+<div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+    <h2 class="text-lg font-semibold mb-4">Filter Problems</h2>
+    
+    <form method="GET" class="flex flex-wrap gap-4">
+        <div>
+            <label for="difficulty" class="block text-sm font-medium text-gray-700 mb-1">Difficulty</label>
+            <select name="difficulty" id="difficulty" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:border-blue-500">
+                <option value="">All Difficulties</option>
+                {% for diff in difficulties %}
+                    <option value="{{ diff }}" {% if current_difficulty == diff %}selected{% endif %}>{{ diff }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <div>
+            <label for="tag" class="block text-sm font-medium text-gray-700 mb-1">Topic</label>
+            <select name="tag" id="tag" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:border-blue-500">
+                <option value="">All Topics</option>
+                {% for topic in tags %}
+                    <option value="{{ topic }}" {% if current_tag == topic %}selected{% endif %}>{{ topic }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <div class="flex items-end">
+            <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+                Apply Filters
+            </button>
+        </div>
+        
+        {% if current_difficulty or current_tag %}
+            <div class="flex items-end">
+                <a href="/problems" class="text-gray-600 px-4 py-2 rounded-md hover:text-gray-800">
+                    Clear Filters
+                </a>
+            </div>
+        {% endif %}
+    </form>
+</div>
+
+<!-- Problems Grid -->
+{% if problems %}
+    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {% for problem in problems %}
+            <div class="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow">
+                <div class="flex justify-between items-start mb-4">
+                    <h3 class="font-bold text-lg text-gray-900">{{ problem.title }}</h3>
+                    <span class="px-2 py-1 text-xs rounded-full font-medium
+                        {% if problem.difficulty == 'Easy' %}bg-green-100 text-green-800
+                        {% elif problem.difficulty == 'Medium' %}bg-yellow-100 text-yellow-800
+                        {% else %}bg-red-100 text-red-800{% endif %}">
+                        {{ problem.difficulty }}
+                    </span>
+                </div>
+
+                <div class="text-gray-600 text-sm mb-4 line-clamp-3">
+                    {{ problem.prompt_md[:150] }}{% if problem.prompt_md|length > 150 %}...{% endif %}
+                </div>
+
+                {% if problem.tags %}
+                    <div class="mb-4">
+                        {% for tag in problem.get_tags_list()[:3] %}
+                            <span class="inline-block bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded mr-1 mb-1">
+                                {{ tag }}
+                            </span>
+                        {% endfor %}
+                        {% if problem.get_tags_list()|length > 3 %}
+                            <span class="text-gray-500 text-xs">+{{ problem.get_tags_list()|length - 3 }} more</span>
+                        {% endif %}
+                    </div>
+                {% endif %}
+
+                <div class="flex justify-between items-center">
+                    {% if session.get('user_id') %}
+                        <a href="/sprint/{{ problem.id }}" 
+                           class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center space-x-2">
+                            <span>Start Sprint</span>
+                            <span>⏱️</span>
+                        </a>
+                    {% else %}
+                        <a href="/login" 
+                           class="bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400">
+                            Login to Start
+                        </a>
+                    {% endif %}
+                    
+                    <div class="text-xs text-gray-500">
+                        <span>25 min</span>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="text-center py-16">
+        <div class="mx-auto w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+            <svg class="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+            </svg>
+        </div>
+        <h3 class="text-xl font-medium text-gray-900 mb-2">No problems found</h3>
+        <p class="text-gray-500 mb-6">
+            {% if current_difficulty or current_tag %}
+                Try adjusting your filters to see more problems.
+            {% else %}
+                We're working on adding problems. Check back soon!
+            {% endif %}
+        </p>
+        {% if current_difficulty or current_tag %}
+            <a href="/problems" class="text-blue-600 hover:text-blue-800 font-medium">
+                Clear filters and show all problems
+            </a>
+        {% endif %}
+    </div>
+{% endif %}
+
+<!-- Pagination would go here in a real app -->
+<div class="text-center mt-12">
+    <p class="text-gray-500">Showing {{ problems|length }} problems</p>
+</div>
+{% endblock %} 
