@@ -4,7 +4,7 @@
 from flask import Flask, render_template, request, redirect, session, jsonify, url_for, flash, abort
 from models import db, User, Problem, Submission, Sprint
 from werkzeug.security import generate_password_hash, check_password_hash
-import datetime, json, subprocess, tempfile, os, uuid, sys
+import datetime, json, os
 from sqlalchemy import func
 
 app = Flask(__name__)
@@ -27,56 +27,35 @@ db.init_app(app)
 
 def run_test(code, test_input, expected_output):
     """
-    Simple and naive test runner - runs user code with test input
-    WARNING: This is not secure for production! Use Docker/sandboxing.
+    Serverless-compatible test runner - evaluates user code safely
+    WARNING: This is still not fully secure for production! Use proper sandboxing.
     """
     try:
-        # Create a temporary file with the user's code
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
-            # Add the test input as variables at the top
-            test_code = f"""
-# Test input
-test_input = {repr(test_input)}
-
-# User's code
-{code}
-
-# Try to run the solution function
-try:
-    if 'solution' in locals():
-        result = solution(test_input)
-        print(result)
-    else:
-        print("Error: No 'solution' function found")
-except Exception as e:
-    print(f"Error: {{e}}")
-"""
-            f.write(test_code)
-            temp_path = f.name
+        # Create a restricted namespace for code execution
+        namespace = {
+            '__builtins__': {
+                'len': len, 'str': str, 'int': int, 'float': float, 'bool': bool,
+                'list': list, 'dict': dict, 'tuple': tuple, 'set': set,
+                'min': min, 'max': max, 'sum': sum, 'sorted': sorted,
+                'range': range, 'enumerate': enumerate, 'zip': zip,
+                'print': lambda *args: None,  # Disable print for security
+            },
+            'test_input': test_input
+        }
         
-        # Run the code and capture output
-        result = subprocess.run(
-            [sys.executable, temp_path], 
-            capture_output=True, 
-            text=True, 
-            timeout=5
-        )
+        # Execute user's code in the restricted namespace
+        exec(code, namespace)
         
-        # Clean up
-        os.unlink(temp_path)
-        
-        if result.returncode == 0:
-            output = result.stdout.strip()
-            # Try to parse the output and compare with expected
-            try:
-                parsed_output = eval(output) if output else None
-                return parsed_output == expected_output
-            except:
-                return output == str(expected_output)
+        # Check if solution function exists and call it
+        if 'solution' in namespace:
+            result = namespace['solution'](test_input)
+            return result == expected_output
         else:
             return False
             
     except Exception as e:
+        # Log error for debugging (in serverless, this goes to logs)
+        print(f"Code execution error: {e}")
         return False
 
 @app.route("/")
