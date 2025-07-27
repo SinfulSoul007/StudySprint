@@ -1,66 +1,65 @@
-# Vercel entry point for StudySprint - Progressive Loading
+# Vercel entry point for StudySprint
+import os
+import sys
 from flask import Flask
 
-# Create basic Flask app first
-app = Flask(__name__)
+# Add parent directory to path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-@app.route('/')
-def home():
-    return """
-    <h1>🔧 StudySprint Debug Mode</h1>
-    <p>Testing imports step by step...</p>
-    <ul>
-        <li><a href="/test1">Test 1: Basic Flask ✅</a></li>
-        <li><a href="/test2">Test 2: Import os/sys</a></li>
-        <li><a href="/test3">Test 3: Path manipulation</a></li>
-        <li><a href="/test4">Test 4: Import models</a></li>
-        <li><a href="/test5">Test 5: Import main app</a></li>
-    </ul>
-    """
+# Check if DATABASE_URL is set
+database_url = os.environ.get('DATABASE_URL')
+secret_key = os.environ.get('SECRET_KEY')
 
-@app.route('/test1')
-def test1():
-    return {"status": "✅ Basic Flask working", "test": "test1"}
+if not database_url:
+    # Create error app for missing environment variables
+    app = Flask(__name__)
+    
+    @app.route('/')
+    def config_error():
+        return f"""
+        <h1>🔧 StudySprint Configuration Required</h1>
+        <p><strong>❌ Missing Environment Variables</strong></p>
+        <p>Please set these in your Vercel Dashboard:</p>
+        <ul>
+            <li><strong>DATABASE_URL:</strong> postgresql://postgres:studysprint123!@db.kfstzenkybnceicsjimu.supabase.co:5432/postgres</li>
+            <li><strong>SECRET_KEY:</strong> studysprint-production-secret-2024</li>
+        </ul>
+        <p><em>DATABASE_URL exists: {bool(database_url)}</em></p>
+        <p><em>SECRET_KEY exists: {bool(secret_key)}</em></p>
+        <hr>
+        <p>After setting environment variables, redeploy your app!</p>
+        """
+    
+    @app.route('/debug')
+    def debug():
+        return {
+            "database_url_exists": bool(database_url),
+            "secret_key_exists": bool(secret_key),
+            "env_vars": list(os.environ.keys())
+        }
 
-@app.route('/test2')
-def test2():
+else:
+    # Environment variables exist, try to import the full app
     try:
-        import os
-        import sys
-        return {"status": "✅ os/sys imported", "python_version": sys.version}
+        from app import app
+        print("✅ StudySprint app loaded successfully with database!")
     except Exception as e:
-        return {"status": "❌ Import failed", "error": str(e)}
-
-@app.route('/test3')
-def test3():
-    try:
-        import os
-        import sys
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        parent_dir = os.path.dirname(current_dir)
-        sys.path.insert(0, parent_dir)
-        return {"status": "✅ Path manipulation working", "parent_dir": parent_dir}
-    except Exception as e:
-        return {"status": "❌ Path manipulation failed", "error": str(e)}
-
-@app.route('/test4')
-def test4():
-    try:
-        import os
-        import sys
-        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        from models import db, User, Problem
-        return {"status": "✅ Models imported successfully"}
-    except Exception as e:
-        return {"status": "❌ Models import failed", "error": str(e)}
-
-@app.route('/test5')
-def test5():
-    try:
-        import os
-        import sys
-        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        from app import app as main_app
-        return {"status": "✅ Main app imported successfully"}
-    except Exception as e:
-        return {"status": "❌ Main app import failed", "error": str(e)} 
+        # Create error app showing import failure
+        app = Flask(__name__)
+        
+        @app.route('/')
+        def import_error():
+            return f"""
+            <h1>🚨 StudySprint Import Error</h1>
+            <p><strong>Error:</strong> {str(e)}</p>
+            <p>Environment variables are set correctly, but app import failed.</p>
+            <a href="/debug">View Debug Info</a>
+            """
+        
+        @app.route('/debug')
+        def debug():
+            return {
+                "error": str(e),
+                "database_url_prefix": database_url[:30] + "..." if database_url else None,
+                "secret_key_set": bool(secret_key)
+            } 
