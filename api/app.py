@@ -1,4 +1,4 @@
-# Vercel entry point for StudySprint
+# Vercel entry point for StudySprint - Robust Error Handling
 import os
 import sys
 from flask import Flask
@@ -6,60 +6,104 @@ from flask import Flask
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Check if DATABASE_URL is set
+# Check environment variables
 database_url = os.environ.get('DATABASE_URL')
 secret_key = os.environ.get('SECRET_KEY')
 
+# Create Flask app
+app = Flask(__name__)
+
 if not database_url:
-    # Create error app for missing environment variables
-    app = Flask(__name__)
-    
+    # No database URL - show config page
     @app.route('/')
     def config_error():
         return f"""
         <h1>🔧 StudySprint Configuration Required</h1>
-        <p><strong>❌ Missing Environment Variables</strong></p>
-        <p>Please set these in your Vercel Dashboard:</p>
-        <ul>
-            <li><strong>DATABASE_URL:</strong> postgresql://postgres:studysprint123!@db.kfstzenkybnceicsjimu.supabase.co:5432/postgres</li>
-            <li><strong>SECRET_KEY:</strong> studysprint-production-secret-2024</li>
-        </ul>
-        <p><em>DATABASE_URL exists: {bool(database_url)}</em></p>
-        <p><em>SECRET_KEY exists: {bool(secret_key)}</em></p>
-        <hr>
-        <p>After setting environment variables, redeploy your app!</p>
+        <p><strong>❌ Missing DATABASE_URL</strong></p>
+        <p>Please set DATABASE_URL in your Vercel Dashboard.</p>
         """
-    
-    @app.route('/debug')
-    def debug():
-        return {
-            "database_url_exists": bool(database_url),
-            "secret_key_exists": bool(secret_key),
-            "env_vars": list(os.environ.keys())
-        }
-
 else:
-    # Environment variables exist, try to import the full app
+    # Environment variables exist - try to load app with error handling
     try:
-        from app import app
-        print("✅ StudySprint app loaded successfully with database!")
-    except Exception as e:
-        # Create error app showing import failure
-        app = Flask(__name__)
+        # Test basic imports first
+        print("Testing basic imports...")
+        from models import db, User, Problem, Submission, Sprint
+        print("✅ Models imported successfully")
         
+        # Configure Flask app manually for serverless
+        app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+        app.config["SECRET_KEY"] = secret_key or "fallback-secret-key"
+        app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+        
+        # Initialize database
+        print("Initializing database...")
+        db.init_app(app)
+        
+        # Test database connection
+        with app.app_context():
+            try:
+                db.create_all()
+                print("✅ Database initialized successfully")
+                
+                # Import routes after database is ready
+                from app import app as main_app
+                # Copy routes from main app
+                for rule in main_app.url_map.iter_rules():
+                    if rule.endpoint != 'static':
+                        app.add_url_rule(
+                            rule.rule, 
+                            rule.endpoint, 
+                            main_app.view_functions[rule.endpoint],
+                            methods=rule.methods
+                        )
+                print("✅ Routes imported successfully")
+                
+            except Exception as db_error:
+                print(f"❌ Database error: {db_error}")
+                # Create error page for database issues
+                @app.route('/')
+                def db_error_page():
+                    return f"""
+                    <h1>🗄️ Database Connection Error</h1>
+                    <p><strong>Error:</strong> {str(db_error)}</p>
+                    <p><strong>Database URL:</strong> {database_url[:50]}...</p>
+                    <p>Check if your Supabase database is active.</p>
+                    <a href="/debug">Debug Info</a>
+                    """
+                
+                @app.route('/debug')
+                def debug():
+                    return {
+                        "database_error": str(db_error),
+                        "database_url_set": bool(database_url),
+                        "secret_key_set": bool(secret_key)
+                    }
+                
+    except Exception as import_error:
+        print(f"❌ Import error: {import_error}")
+        # Create error page for import issues
         @app.route('/')
-        def import_error():
+        def import_error_page():
             return f"""
-            <h1>🚨 StudySprint Import Error</h1>
-            <p><strong>Error:</strong> {str(e)}</p>
-            <p>Environment variables are set correctly, but app import failed.</p>
-            <a href="/debug">View Debug Info</a>
+            <h1>📦 Import Error</h1>
+            <p><strong>Error:</strong> {str(import_error)}</p>
+            <p>Failed to import StudySprint components.</p>
+            <a href="/debug">Debug Info</a>
             """
         
         @app.route('/debug')
         def debug():
             return {
-                "error": str(e),
-                "database_url_prefix": database_url[:30] + "..." if database_url else None,
-                "secret_key_set": bool(secret_key)
-            } 
+                "import_error": str(import_error),
+                "python_path": sys.path,
+                "current_dir": os.path.dirname(os.path.abspath(__file__))
+            }
+
+# Health check route that should always work
+@app.route('/health')
+def health():
+    return {
+        "status": "ok", 
+        "database_url_set": bool(database_url),
+        "secret_key_set": bool(secret_key)
+    } 
