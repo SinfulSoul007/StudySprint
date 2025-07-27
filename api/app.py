@@ -1,109 +1,156 @@
-# Vercel entry point for StudySprint - Robust Error Handling
+# Vercel entry point for StudySprint - Standalone Version
 import os
-import sys
-from flask import Flask
-
-# Add parent directory to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# Check environment variables
-database_url = os.environ.get('DATABASE_URL')
-secret_key = os.environ.get('SECRET_KEY')
+from flask import Flask, render_template_string, request, redirect, session, jsonify, url_for, flash
+from flask_sqlalchemy import SQLAlchemy
+from werkzeug.security import generate_password_hash, check_password_hash
+import datetime
 
 # Create Flask app
 app = Flask(__name__)
 
-if not database_url:
-    # No database URL - show config page
+# Database Configuration
+database_url = os.environ.get('DATABASE_URL')
+secret_key = os.environ.get('SECRET_KEY', 'fallback-secret-key')
+
+if database_url:
+    app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+    app.config["SECRET_KEY"] = secret_key
+    app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+    
+    # Initialize database
+    db = SQLAlchemy(app)
+    
+    # Define models directly here
+    class User(db.Model):
+        __tablename__ = 'users'
+        id = db.Column(db.Integer, primary_key=True)
+        username = db.Column(db.String(80), unique=True, nullable=False)
+        pass_hash = db.Column(db.String(255), nullable=False)
+        joined_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+        total_score = db.Column(db.Integer, default=0)
+    
+    class Problem(db.Model):
+        __tablename__ = 'problems'
+        id = db.Column(db.Integer, primary_key=True)
+        title = db.Column(db.String(200), nullable=False)
+        prompt_md = db.Column(db.Text, nullable=False)
+        starter_code = db.Column(db.Text, nullable=False)
+        tests_json = db.Column(db.Text, nullable=False)
+        difficulty = db.Column(db.String(20), default='Easy')
+        
+        def get_tests(self):
+            import json
+            return json.loads(self.tests_json)
+    
+    # Initialize database tables
+    with app.app_context():
+        try:
+            db.create_all()
+            print("✅ Database initialized successfully")
+        except Exception as e:
+            print(f"❌ Database error: {e}")
+    
+    # Routes
+    @app.route('/')
+    def index():
+        try:
+            problems = Problem.query.limit(10).all()
+            return render_template_string("""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>StudySprint - Live!</title>
+                <style>
+                    body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+                    .problem { border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px; }
+                    .success { color: green; font-weight: bold; }
+                    .nav { background: #f8f9fa; padding: 10px; margin-bottom: 20px; border-radius: 5px; }
+                    .nav a { margin-right: 15px; text-decoration: none; color: #007bff; }
+                </style>
+            </head>
+            <body>
+                <div class="nav">
+                    <a href="/">Home</a>
+                    <a href="/register">Register</a>
+                    <a href="/login">Login</a>
+                    <a href="/problems">Problems</a>
+                </div>
+                
+                <h1>🚀 StudySprint is LIVE! ✅</h1>
+                <p class="success">Your coding platform is working on Vercel!</p>
+                
+                <h2>🧠 Available Problems ({{ problems|length }})</h2>
+                {% for problem in problems %}
+                <div class="problem">
+                    <h3>{{ problem.title }}</h3>
+                    <p><strong>Difficulty:</strong> {{ problem.difficulty }}</p>
+                    <p>{{ problem.prompt_md[:100] }}...</p>
+                    <a href="/sprint/{{ problem.id }}">Start Sprint</a>
+                </div>
+                {% endfor %}
+                
+                {% if problems|length == 0 %}
+                <p>No problems yet. <a href="/seed">Seed database with sample problems</a></p>
+                {% endif %}
+                
+                <hr>
+                <p><em>✅ Database: Connected | ✅ Flask: Running | ✅ Vercel: Deployed</em></p>
+            </body>
+            </html>
+            """, problems=problems)
+        except Exception as e:
+            return f"<h1>Database Error</h1><p>{str(e)}</p>"
+    
+    @app.route('/problems')
+    def problems():
+        try:
+            problems = Problem.query.all()
+            return render_template_string("""
+            <h1>All Problems</h1>
+            {% for problem in problems %}
+            <div style="border:1px solid #ccc; padding:10px; margin:10px;">
+                <h3>{{ problem.title }}</h3>
+                <p>Difficulty: {{ problem.difficulty }}</p>
+            </div>
+            {% endfor %}
+            <a href="/">← Back to Home</a>
+            """, problems=problems)
+        except Exception as e:
+            return f"Error: {str(e)}"
+    
+    @app.route('/seed')
+    def seed():
+        try:
+            # Add a sample problem
+            if Problem.query.count() == 0:
+                sample_problem = Problem(
+                    title="Two Sum",
+                    prompt_md="Given an array of integers, return indices of two numbers that add up to target.",
+                    starter_code="def solution(nums, target):\n    # Your code here\n    pass",
+                    tests_json='[{"input": [[2,7,11,15], 9], "output": [0,1]}]',
+                    difficulty="Easy"
+                )
+                db.session.add(sample_problem)
+                db.session.commit()
+                return "<h1>✅ Database Seeded!</h1><p>Sample problem added.</p><a href='/'>Go Home</a>"
+            else:
+                return "<h1>Already Seeded</h1><a href='/'>Go Home</a>"
+        except Exception as e:
+            return f"Seed Error: {str(e)}"
+
+else:
+    # No database URL
     @app.route('/')
     def config_error():
-        return f"""
-        <h1>🔧 StudySprint Configuration Required</h1>
-        <p><strong>❌ Missing DATABASE_URL</strong></p>
-        <p>Please set DATABASE_URL in your Vercel Dashboard.</p>
+        return """
+        <h1>🔧 Configuration Required</h1>
+        <p>Set DATABASE_URL in Vercel environment variables.</p>
         """
-else:
-    # Environment variables exist - try to load app with error handling
-    try:
-        # Test basic imports first
-        print("Testing basic imports...")
-        from models import db, User, Problem, Submission, Sprint
-        print("✅ Models imported successfully")
-        
-        # Configure Flask app manually for serverless
-        app.config["SQLALCHEMY_DATABASE_URI"] = database_url
-        app.config["SECRET_KEY"] = secret_key or "fallback-secret-key"
-        app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-        
-        # Initialize database
-        print("Initializing database...")
-        db.init_app(app)
-        
-        # Test database connection
-        with app.app_context():
-            try:
-                db.create_all()
-                print("✅ Database initialized successfully")
-                
-                # Import routes after database is ready
-                from app import app as main_app
-                # Copy routes from main app
-                for rule in main_app.url_map.iter_rules():
-                    if rule.endpoint != 'static':
-                        app.add_url_rule(
-                            rule.rule, 
-                            rule.endpoint, 
-                            main_app.view_functions[rule.endpoint],
-                            methods=rule.methods
-                        )
-                print("✅ Routes imported successfully")
-                
-            except Exception as db_error:
-                print(f"❌ Database error: {db_error}")
-                # Create error page for database issues
-                @app.route('/')
-                def db_error_page():
-                    return f"""
-                    <h1>🗄️ Database Connection Error</h1>
-                    <p><strong>Error:</strong> {str(db_error)}</p>
-                    <p><strong>Database URL:</strong> {database_url[:50]}...</p>
-                    <p>Check if your Supabase database is active.</p>
-                    <a href="/debug">Debug Info</a>
-                    """
-                
-                @app.route('/debug')
-                def debug():
-                    return {
-                        "database_error": str(db_error),
-                        "database_url_set": bool(database_url),
-                        "secret_key_set": bool(secret_key)
-                    }
-                
-    except Exception as import_error:
-        print(f"❌ Import error: {import_error}")
-        # Create error page for import issues
-        @app.route('/')
-        def import_error_page():
-            return f"""
-            <h1>📦 Import Error</h1>
-            <p><strong>Error:</strong> {str(import_error)}</p>
-            <p>Failed to import StudySprint components.</p>
-            <a href="/debug">Debug Info</a>
-            """
-        
-        @app.route('/debug')
-        def debug():
-            return {
-                "import_error": str(import_error),
-                "python_path": sys.path,
-                "current_dir": os.path.dirname(os.path.abspath(__file__))
-            }
 
-# Health check route that should always work
 @app.route('/health')
 def health():
     return {
-        "status": "ok", 
+        "status": "ok",
         "database_url_set": bool(database_url),
-        "secret_key_set": bool(secret_key)
+        "app_type": "standalone_version"
     } 
